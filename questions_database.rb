@@ -30,12 +30,17 @@ class User
         data.empty? ? [] : data.map { |datum| User.new(datum) }
     end
 
-    attr_accessor :id, :fname, :lname
+    attr_accessor :fname, :lname
+    attr_reader :id
 
     def initialize(options)
         @id = options['id']
         @fname = options['fname']
         @lname = options['lname']
+    end
+
+    def save
+        id ? update : insert
     end
 
     def authored_questions
@@ -52,6 +57,36 @@ class User
 
     def liked_questions
         QuestionLike.liked_questions_for_user_id(id)
+    end
+
+    def average_karma
+        data = QuestionsDatabase.instance.execute(<<-SQL, id)
+            SELECT COUNT(DISTINCT questions.id) / CAST(COUNT(COALESCE(user_id, 0)) AS FLOAT) AS karma
+            FROM questions
+            LEFT JOIN question_likes
+                ON questions.id = question_id
+            WHERE
+                user_id = ?
+        SQL
+        data.first['karma']
+    end
+
+    private
+
+    def update
+        QuestionsDatabase.instance.execute(<<-SQL, fname, lname, id)
+            UPDATE users
+            SET fname = ?, lname = ?
+            WHERE id = ?
+        SQL
+    end
+
+    def insert
+        QuestionsDatabase.instance.execute(<<-SQL, fname, lname)
+            INSERT INTO users ('fname', 'lname')
+            VALUES (?, ?)
+        SQL
+        @id = QuestionsDatabase.instance.last_insert_row_id
     end
 end
 
@@ -78,13 +113,22 @@ class Question
         QuestionFollow.most_followed_questions(n)
     end
 
-    attr_accessor :id, :title, :body, :author_id
+    def self.most_liked(n)
+        QuestionLike.most_liked_questions(n)
+    end
+
+    attr_accessor :title, :body, :author_id
+    attr_reader :id
 
     def initialize(options)
         @id = options['id']
         @title = options['title']
         @body = options['body']
         @author_id = options['author_id']
+    end
+
+    def save
+        id ? update : insert
     end
 
     def author
@@ -105,6 +149,24 @@ class Question
 
     def num_likes
         QuestionLike.num_likes_for_question_id(id)
+    end
+
+    private
+
+    def update
+        QuestionsDatabase.instance.execute(<<-SQL, title, body, author_id, id)
+            UPDATE questions
+            SET title = ?, body = ?, author_id = ?
+            WHERE id = ?
+        SQL
+    end
+
+    def insert
+        QuestionsDatabase.instance.execute(<<-SQL, title, body, author_id)
+            INSERT INTO questions ('title', 'body', 'author_id')
+            VALUES (?, ?, ?)
+        SQL
+        @id = QuestionsDatabase.instance.last_insert_row_id
     end
 end
 
@@ -145,7 +207,8 @@ class Reply
         data.empty? ? [] : data.map { |datum| Reply.new(datum) }
     end
 
-    attr_accessor :id, :body, :reply_id, :question_id, :user_id
+    attr_accessor :body, :reply_id, :question_id, :user_id
+    attr_reader :id
 
     def initialize(options)
         @id = options['id']
@@ -153,6 +216,10 @@ class Reply
         @reply_id = options['reply_id']
         @question_id = options['question_id']
         @user_id = options['user_id']
+    end
+
+    def save
+        id ? update : insert
     end
 
     def author
@@ -169,6 +236,24 @@ class Reply
 
     def child_replies
         Reply.find_by_reply_id(id)
+    end
+
+    private
+
+    def update
+        QuestionsDatabase.instance.execute(<<-SQL, body, reply_id, question_id, user_id, id)
+            UPDATE replies
+            SET body = ?, reply_id = ?, question_id = ?, user_id = ?
+            WHERE id = ?
+        SQL
+    end
+
+    def insert
+        QuestionsDatabase.instance.execute(<<-SQL, body, reply_id, question_id, user_id)
+            INSERT INTO replies ('body', 'reply_id', 'question_id', 'user_id')
+            VALUES (?, ?, ?, ?)
+        SQL
+        @id = QuestionsDatabase.instance.last_insert_row_id
     end
 end
 
@@ -250,5 +335,18 @@ class QuestionLike
                 user_id = ?
         SQL
         data.empty? ? [] : data.map { |datum| Question.new(datum) }        
+    end
+
+    def self.most_liked_questions(n)
+        data = QuestionsDatabase.instance.execute(<<-SQL, n)
+            SELECT *
+            FROM questions
+            JOIN question_likes
+                ON question_id = questions.id
+            GROUP BY question_id
+            ORDER BY COUNT(*) DESC
+            LIMIT ?
+        SQL
+        data.empty? ? [] : data.map { |datum| Question.new(datum) }
     end
 end

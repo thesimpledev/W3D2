@@ -7,13 +7,13 @@ DROP TABLE IF EXISTS questions;
 DROP TABLE IF EXISTS users;
 
 CREATE TABLE users (
-    id PRIMARY KEY NOT NULL,
+    id INTEGER PRIMARY KEY,
     fname VARCHAR(255) NOT NULL,
     lname VARCHAR(255) NOT NULL
 );
 
 CREATE TABLE questions (
-    id PRIMARY KEY NOT NULL,
+    id INTEGER PRIMARY KEY,
     title TEXT NOT NULL,
     body TEXT NOT NULL,
 
@@ -29,7 +29,7 @@ CREATE TABLE question_follows (
 );
 
 CREATE TABLE replies (
-    id PRIMARY KEY NOT NULL,
+    id INTEGER PRIMARY KEY,
     body TEXT NOT NULL,
 
     reply_id INTEGER,
