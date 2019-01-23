@@ -1,6 +1,5 @@
 require 'singleton'
 require 'sqlite3'
-require 'byebug'
 require 'active_support/inflector'
 
 class QuestionsDatabase < SQLite3::Database
