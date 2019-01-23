@@ -1,5 +1,7 @@
 require 'singleton'
 require 'sqlite3'
+require 'byebug'
+require 'active_support/inflector'
 
 class QuestionsDatabase < SQLite3::Database
     include Singleton
@@ -11,16 +13,52 @@ class QuestionsDatabase < SQLite3::Database
     end
 end
 
-class User
-    def self.find_by_id(id)
+class ModelBase
+    def self.find_by_id(id)        
         data = QuestionsDatabase.instance.execute(<<-SQL, id)
             SELECT *
-            FROM users
+            FROM #{to_s.tableize}
             WHERE id = ?
         SQL
-        data.empty? ? nil : User.new(data.first)
+        data.empty? ? nil : new(data.first)
     end
 
+    def self.all
+        data = QuestionsDatabase.instance.execute(<<-SQL)
+            SELECT *
+            FROM #{to_s.tableize}
+        SQL
+        data.empty? ? [] : data.map { |datum| new(datum) }       
+    end
+
+    def self.where(options)
+        options = (options.is_a?(String) ? options : parse_options(options))
+        data = QuestionsDatabase.instance.execute(<<-SQL)
+            SELECT *
+            FROM #{to_s.tableize}
+            WHERE #{options}
+        SQL
+        data.empty? ? [] : data.map { |datum| new(datum) }    
+    end
+
+    def self.find_by(options)
+        where(options).first
+    end
+
+    private
+
+    def self.parse_options(options)
+        output = []
+
+        options.each do |key, val|
+            output << "#{key} = '#{val}'"
+        end
+        
+        output.join(" AND ")
+    end
+end
+
+class User < ModelBase
     def self.find_by_name(fname, lname)
         data = QuestionsDatabase.instance.execute(<<-SQL, fname, lname)
             SELECT *
@@ -90,16 +128,7 @@ class User
     end
 end
 
-class Question
-    def self.find_by_id(id)
-        data = QuestionsDatabase.instance.execute(<<-SQL, id)
-            SELECT *
-            FROM questions
-            WHERE id = ?
-        SQL
-        data.empty? ? nil : Question.new(data.first)
-    end
-
+class Question < ModelBase
     def self.find_by_author_id(author_id)
         data = QuestionsDatabase.instance.execute(<<-SQL, author_id)
             SELECT *
@@ -170,16 +199,7 @@ class Question
     end
 end
 
-class Reply
-    def self.find_by_id(id)
-        data = QuestionsDatabase.instance.execute(<<-SQL, id)
-            SELECT *
-            FROM replies
-            WHERE id = ?
-        SQL
-        data.empty? ? nil : Reply.new(data.first)
-    end
-
+class Reply < ModelBase
     def self.find_by_user_id(user_id)
         data = QuestionsDatabase.instance.execute(<<-SQL, user_id)
             SELECT *
